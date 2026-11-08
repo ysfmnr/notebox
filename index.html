@@ -1138,6 +1138,9 @@ body:not(.dark) .review-wrap{position:relative}
   .vary-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap; }
   .vary-row select { font-family: inherit; font-size: 13px; padding: 7px 12px; border-radius: 12px; border: 1px solid var(--border-strong); background: transparent; color: var(--text); cursor: pointer; }
   .vary-help { font-size: 11.5px; color: var(--text-faint); line-height: 1.5; margin-top: 6px; max-width: 560px; }
+
+  #mini-toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 14px); z-index: 900; padding: 11px 20px; border-radius: 999px; font-size: 13px; background: var(--text); color: var(--bg); box-shadow: 0 12px 36px rgba(0,0,0,.4); opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; max-width: 90vw; }
+  #mini-toast.show { opacity: 1; transform: translate(-50%, 0); }
 </style>
 </head>
 <body>
@@ -2279,39 +2282,98 @@ function bulkTagBarHTML(visibleCards) {
   return `<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid var(--border);border-radius:2px;margin-bottom:16px;background:rgba(255,255,255,0.02);flex-wrap:wrap;">
     <button class="btn-secondary" style="font-size:12px;padding:5px 12px;" onclick='selectAllVisible(${JSON.stringify(ids)})'>${allSelected ? 'Deselect all' : 'Select all'}</button>
     <span style="font-size:12px;color:var(--text-muted);font-family:'JetBrains Mono',monospace;">${n} selected</span>
-    <input class="text-input" id="bulk-tag-input" type="text" placeholder="tag name..." style="width:180px;margin-bottom:0;" ${n === 0 ? 'disabled' : ''} onkeydown="if(event.key==='Enter')applyBulkTag()" />
+    <div style="position:relative;">
+      <input class="text-input" id="bulk-tag-input" type="text" placeholder="tag name..." style="width:200px;margin-bottom:0;" ${n === 0 ? 'disabled' : ''} oninput="bulkTagSuggest()" onfocus="bulkTagSuggest()" onblur="setTimeout(hideBulkAC, 150)" onkeydown="bulkTagKey(event)" autocomplete="off" />
+      <div class="tag-autocomplete" id="bulk-tag-ac" style="min-width:240px;"></div>
+    </div>
     <button class="btn-secondary" style="font-size:12px;padding:5px 12px;" ${n === 0 ? 'disabled' : ''} onclick="applyBulkTag()">+ Add tag to ${n}</button>
     <button class="btn-secondary" style="font-size:12px;padding:5px 12px;" ${n === 0 ? 'disabled' : ''} onclick="removeBulkTag()">− Remove tag from ${n}</button>
   </div>`;
+}
+
+
+// ─── bulk tag input: autocomplete from existing tags ───
+let bulkACSel = -1;
+function bulkTagSuggest() {
+  const input = document.getElementById('bulk-tag-input'), ac = document.getElementById('bulk-tag-ac');
+  if (!input || !ac) return;
+  const q = input.value.trim().toLowerCase();
+  if (!q) { hideBulkAC(); return; }
+  const sel = state.cards.filter(c => selectedCardIds.has(c.id));
+  const matches = getAllTags().filter(t => t.toLowerCase().includes(q))
+    .sort((a, b) => (b.toLowerCase().startsWith(q) - a.toLowerCase().startsWith(q)) || a.localeCompare(b)).slice(0, 10);
+  if (!matches.length) { hideBulkAC(); return; }
+  bulkACSel = -1;
+  ac.innerHTML = matches.map(t => {
+    const i = t.toLowerCase().indexOf(q);
+    const hl = esc(t.slice(0, i)) + `<mark>${esc(t.slice(i, i + q.length))}</mark>` + esc(t.slice(i + q.length));
+    const have = sel.filter(c => (c.tags || []).includes(t)).length;
+    const note = sel.length ? `<span style="color:var(--text-faint);font-size:11px;margin-left:14px;">${have}/${sel.length}</span>` : '';
+    return `<div class="tag-ac-item" data-tag="${esc(t)}" onmousedown="pickBulkTag('${esc(t)}')"><span>${hl}</span>${note}</div>`;
+  }).join('');
+  ac.classList.add('show');
+}
+function pickBulkTag(t) {
+  const input = document.getElementById('bulk-tag-input');
+  input.value = t; hideBulkAC(); input.focus();
+}
+function hideBulkAC() { const ac = document.getElementById('bulk-tag-ac'); if (ac) { ac.classList.remove('show'); bulkACSel = -1; } }
+function bulkTagKey(e) {
+  const ac = document.getElementById('bulk-tag-ac'), items = ac ? [...ac.querySelectorAll('.tag-ac-item')] : [];
+  const open = ac && ac.classList.contains('show') && items.length;
+  const mark = () => items.forEach((el, i) => el.classList.toggle('selected', i === bulkACSel));
+  if (e.key === 'ArrowDown' && open) { e.preventDefault(); bulkACSel = Math.min(bulkACSel + 1, items.length - 1); mark(); }
+  else if (e.key === 'ArrowUp' && open) { e.preventDefault(); bulkACSel = Math.max(bulkACSel - 1, -1); mark(); }
+  else if (e.key === 'Tab' && open) { e.preventDefault(); pickBulkTag(items[bulkACSel >= 0 ? bulkACSel : 0].dataset.tag); }
+  else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (open && bulkACSel >= 0) pickBulkTag(items[bulkACSel].dataset.tag);   // first Enter fills the tag, second Enter applies it
+    else applyBulkTag();
+  }
+  else if (e.key === 'Escape') hideBulkAC();
 }
 
 function applyBulkTag() {
   const input = document.getElementById('bulk-tag-input');
   const tag = (input.value || '').trim().toLowerCase();
   if (!tag || selectedCardIds.size === 0) return;
+  let changed = 0; const total = selectedCardIds.size;
   state.cards.forEach(c => {
     if (selectedCardIds.has(c.id)) {
       if (!c.tags) c.tags = [];
-      if (!c.tags.includes(tag)) c.tags.push(tag);
+      if (!c.tags.includes(tag)) { c.tags.push(tag); changed++; }
     }
   });
   save();
+  selectedCardIds.clear();            // start fresh for the next batch (select mode stays on)
   renderDeckMain();
   renderSidebar();
+  showMiniToast(`Added “${tag}” to ${changed} card${changed !== 1 ? 's' : ''}` + (changed < total ? ` (${total - changed} already had it)` : ''));
 }
 
 function removeBulkTag() {
   const input = document.getElementById('bulk-tag-input');
   const tag = (input.value || '').trim().toLowerCase();
   if (!tag || selectedCardIds.size === 0) return;
+  let changed = 0;
   state.cards.forEach(c => {
-    if (selectedCardIds.has(c.id) && c.tags) {
-      c.tags = c.tags.filter(t => t !== tag);
+    if (selectedCardIds.has(c.id) && c.tags && c.tags.includes(tag)) {
+      c.tags = c.tags.filter(t => t !== tag); changed++;
     }
   });
   save();
+  selectedCardIds.clear();
   renderDeckMain();
   renderSidebar();
+  showMiniToast(`Removed “${tag}” from ${changed} card${changed !== 1 ? 's' : ''}`);
+}
+
+function showMiniToast(msg) {
+  let t = document.getElementById('mini-toast');
+  if (!t) { t = document.createElement('div'); t.id = 'mini-toast'; document.body.appendChild(t); }
+  t.textContent = msg; t.className = 'show';
+  clearTimeout(window._miniToastT);
+  window._miniToastT = setTimeout(() => { t.className = ''; }, 2600);
 }
 
 function cardRow(c) {
