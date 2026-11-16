@@ -1066,6 +1066,9 @@ body:not(.dark) .review-wrap{position:relative}
   body[data-cardfont=rounded] .flip-content, body[data-cardfont=rounded] .cloze-display, body[data-cardfont=rounded] .deck-title, body[data-cardfont=rounded] .card-row-front { font-weight: 600; }
   body[data-cardfont=mono] { --card-font: 'JetBrains Mono', ui-monospace, monospace; --card-ls: -0.02em; }
   body[data-cardfont=mono] .flip-content, body[data-cardfont=mono] .cloze-display, body[data-cardfont=mono] .card-row-front, body[data-cardfont=mono] .cq-box { font-size: .92em; }
+  .vary-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap; }
+  .vary-row select { font-family: inherit; font-size: 13px; padding: 7px 12px; border-radius: 12px; border: 1px solid var(--border-strong); background: transparent; color: var(--text); cursor: pointer; }
+  .vary-help { font-size: 11.5px; color: var(--text-faint); line-height: 1.5; margin: 6px 0 16px; max-width: 560px; }
   .cz-hint { color: var(--text-faint); letter-spacing: .12em; font-weight: 500; padding: 0 3px; white-space: pre-wrap; }
   .pal-sw { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform .12s; box-shadow: inset 0 0 0 1px rgba(128,128,128,.4); }
   .pal-sw:hover { transform: scale(1.12); }
@@ -1135,10 +1138,6 @@ body:not(.dark) .review-wrap{position:relative}
   .cloze-display span.cz-skip { color: var(--purple); font-weight: 500; border-radius: 8px; padding: 1px 9px; background: color-mix(in srgb, var(--purple) 15%, transparent); }
   .feedback.skip { color: var(--purple); }
 
-  /* ═══ VARY BLANKS ═══ */
-  .vary-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; font-size: 13px; color: var(--text-muted); flex-wrap: wrap; }
-  .vary-row select { font-family: inherit; font-size: 13px; padding: 7px 12px; border-radius: 12px; border: 1px solid var(--border-strong); background: transparent; color: var(--text); cursor: pointer; }
-  .vary-help { font-size: 11.5px; color: var(--text-faint); line-height: 1.5; margin-top: 6px; max-width: 560px; }
 
   #mini-toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 14px); z-index: 900; padding: 11px 20px; border-radius: 999px; font-size: 13px; background: var(--text); color: var(--bg); box-shadow: 0 12px 36px rgba(0,0,0,.4); opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; max-width: 90vw; }
   #mini-toast.show { opacity: 1; transform: translate(-50%, 0); }
@@ -1173,7 +1172,6 @@ body:not(.dark) .review-wrap{position:relative}
         <div class="acc-row"><div class="acc-label">Accent colour</div><div class="acc-swatches" id="acc-swatches"></div></div>
         <div class="acc-row"><div class="acc-label">Palette</div><div class="acc-swatches" id="pal-swatches"></div></div>
         <div class="acc-row"><div class="acc-label">Card font</div><div class="font-chips" id="font-chips"></div></div>
-        <div class="acc-row"><div class="acc-label">Cloze hints</div><div class="font-chips" id="hint-chips"></div></div>
         <button class="theme-toggle-btn" id="theme-toggle-btn" onclick="toggleAppTheme()" title="Toggle dark mode">🌙</button>
       </div>
     </div>
@@ -1269,16 +1267,13 @@ body:not(.dark) .review-wrap{position:relative}
       </div>
       <textarea class="editor-ta" id="ec" placeholder="The capital of France is {{c1::Paris}}..." onkeydown="taKey(event,'ec')" style="min-height:200px;"></textarea>
       <div class="vary-row">
-        <label for="ecloze-vary">Blanks per review</label>
-        <select id="ecloze-vary">
-          <option value="all">All blanks (default)</option>
-          <option value="1">Vary — hide 1 at a time</option>
-          <option value="2">Vary — hide 2 at a time</option>
-          <option value="3">Vary — hide 3 at a time</option>
-          <option value="half">Vary — hide half</option>
+        <label for="ecloze-hints">Hints</label>
+        <select id="ecloze-hints">
+          <option value="off">Off (default)</option>
+          <option value="fade">Fading — letter pattern, then first letter, then none</option>
         </select>
       </div>
-      <div class="vary-help">With “Vary”, each review hides a different subset of your blanks (the ones you miss most come up more); the rest show as plain text. Works best with 4+ blanks.</div>
+      <div class="vary-help">Fading hints start as a letter pattern in each blank and fade as you get that blank right in a row. A miss brings the hint back.</div>
       <div class="field-label">Recall questions <span style="color:var(--text-faint);font-size:11px;text-transform:none;letter-spacing:0;">(optional — asked after the blanks, answered from memory)</span></div>
       <div style="font-size:11px;color:var(--text-faint);font-family:'JetBrains Mono',monospace;margin-bottom:8px;line-height:1.6;">Start a question with <code>Q:</code>. Under it, list the key points a good answer should cover, one per line starting with <code>-</code>. Leave a blank line between questions.<br>Optional: add <code>::</code> and trigger words to a point, e.g. <code>- limits damage :: blast radius, compromis</code>. If your answer contains any of them, that point is pre-ticked (partial words work).</div>
       <textarea class="editor-ta" id="ecq" placeholder="Q: What is least privilege?&#10;- users get only the access they need :: minimum, only&#10;- limits the damage if an account is compromised :: damage, blast radius" style="min-height:110px;font-family:'JetBrains Mono',monospace;"></textarea>
@@ -1834,27 +1829,10 @@ function getClozeAnswers(text) {
   while ((m = re.exec(text)) !== null) out.push({ n: +m[1], answer: m[2], idx: out.length });
   return out;
 }
-// Vary blanks: choose which of the card's blanks to hide this time. Missed and not-recently-seen blanks are favoured.
 let clozeAll = [];
 function blankKey(a) { return String(a.answer).trim().toLowerCase(); }
-function pickReviewBlanks(card) {
-  const all = getClozeAnswers(card.clozeText);
-  const v = card.varyBlanks;
-  if (!v || all.length < 2) return all;
-  const want = v === 'half' ? Math.ceil(all.length / 2) : Math.max(1, +v || all.length);
-  if (want >= all.length) return all;
-  const stats = card.blankStats || {}, now = Date.now();
-  const scored = all.map(a => {
-    const st = stats[blankKey(a)] || { seen: 0, miss: 0, last: 0 };
-    const days = st.last ? Math.min(14, (now - st.last) / 86400000) : 14;
-    return { a, score: st.miss * 2 + days * 0.3 + (st.seen ? 0 : 1.5) + Math.random() * 1.5 };
-  });
-  scored.sort((x, y) => y.score - x.score);
-  return scored.slice(0, want).map(x => x.a).sort((x, y) => x.idx - y.idx);
-}
 // ─── Fading hints: a new blank shows a letter pattern; each correct answer in a row takes some of it away ───
-const HINTS_KEY = 'meno_hints_v1';
-function hintsOn() { return lsGet(HINTS_KEY, 'fade') === 'fade'; }
+function hintsOn(card) { return !!card && card.hints === 'fade'; }   // per card, off unless set in the card editor
 function hintLevel(card, a) {
   const st = (card.blankStats || {})[blankKey(a)];
   const s = st ? (st.streak || 0) : 0;
@@ -1869,7 +1847,6 @@ function hintText(answer, level) {
   return first ? first + '\u2026' : '';
 }
 const HINT_LABELS = ['letter pattern', 'first letter', 'no hint'];
-function setHintMode(m) { try { localStorage.setItem(HINTS_KEY, m); } catch (e) {} applyPalette(); }
 function bumpBlankStat(card, a, ok) {
   card.blankStats = card.blankStats || {};
   const k = blankKey(a), st = card.blankStats[k] || { seen: 0, miss: 0, last: 0 };
@@ -2700,7 +2677,7 @@ function openCardEditor(cardId) {
       document.getElementById('ec').value = c.clozeText || '';
       document.getElementById('ecq').value = questionsToText(c.questions);
       document.getElementById('ecq-split').checked = !!c.questionsSplit;
-      document.getElementById('ecloze-vary').value = c.varyBlanks || 'all';
+      document.getElementById('ecloze-hints').value = c.hints === 'fade' ? 'fade' : 'off';
     }
     currentEditorTags = [...(c.tags || [])];
   } else {
@@ -2711,7 +2688,7 @@ function openCardEditor(cardId) {
     document.getElementById('ec').value = '';
     document.getElementById('ecq').value = '';
     document.getElementById('ecq-split').checked = false;
-    document.getElementById('ecloze-vary').value = 'all';
+    document.getElementById('ecloze-hints').value = 'off';
     document.getElementById('ecode-prompt').value = '';
     document.getElementById('ecode-answer').value = '';
     document.getElementById('ecli-prompt').value = '';
@@ -2877,7 +2854,7 @@ function saveCard() {
     const ct = document.getElementById('ec').value.trim();
     const questions = parseQuestions(document.getElementById('ecq').value);
     const splitQ = document.getElementById('ecq-split').checked;
-    const vary = document.getElementById('ecloze-vary').value;
+    const hintsSel = document.getElementById('ecloze-hints').value;
     document.getElementById('ec').style.borderColor = (ct && ct.includes('{{c')) ? '' : 'var(--red)';
     if (!ct || !ct.includes('{{c')) return;
     if (editingCardId) {
@@ -2886,13 +2863,14 @@ function saveCard() {
         c.clozeText = ct; c.type = 'cloze'; c.tags = [...currentEditorTags];
         if (questions.length) c.questions = questions; else delete c.questions;
         if (questions.length && splitQ) c.questionsSplit = true; else delete c.questionsSplit;
-        if (vary !== 'all') c.varyBlanks = vary; else delete c.varyBlanks;
+        delete c.varyBlanks;   // the old "vary blanks" option no longer exists
+        if (hintsSel === 'fade') c.hints = 'fade'; else delete c.hints;
       }
     } else {
       const card = { id: 'c_' + Date.now(), deckId: targetDeckId, type: 'cloze', clozeText: ct, interval: 1, due: Date.now(), ease: 2.5, reps: 0, tags: [...currentEditorTags] };
       if (questions.length) card.questions = questions;
       if (questions.length && splitQ) card.questionsSplit = true;
-      if (vary !== 'all') card.varyBlanks = vary;
+      if (hintsSel === 'fade') card.hints = 'fade';
       state.cards.push(card);
     }
   } else if (cardType === 'cli') {
@@ -3598,7 +3576,7 @@ function finishClozeQuestions(card) {
 function renderClozeRev(main, card, pct) {
   clozeBlankIdx = 0;
   clozeAll = getClozeAnswers(card.clozeText);
-  clozeAnswers = pickReviewBlanks(card);
+  clozeAnswers = getClozeAnswers(card.clozeText);
   clozeCorrect = 0;
 
   const sz = card.fontSize || 'md';
@@ -3650,7 +3628,7 @@ function renderClozeStep(card) {
       const col = ok ? 'var(--accent)' : 'var(--red)';
       return `<span style="color:${col};border-bottom:2px solid ${col};padding:0 3px;">${esc(clozeAnswers[i].answer)}</span>`;
     } else if (i === cur) {
-      const lv = (hintsOn() && !clozeAnswers[i]._retry) ? hintLevel(card, clozeAnswers[i]) : 2;
+      const lv = (hintsOn(card) && !clozeAnswers[i]._retry) ? hintLevel(card, clozeAnswers[i]) : 2;
       const ht = lv < 2 ? hintText(clozeAnswers[i].answer, lv) : '';
       return `<span class="cz-blank" style="display:inline-block;min-width:80px;border-bottom:2px solid var(--accent);min-height:1.3em;vertical-align:middle;">${ht ? `<span class="cz-hint">${esc(ht)}</span>` : ''}</span>`;
     } else {
@@ -3665,7 +3643,7 @@ function renderClozeStep(card) {
   const ctr = document.getElementById('blank-counter');
   if (ctr) ctr.textContent = Math.min(cur + 1, clozeAnswers.length) + ' / ' + clozeAnswers.length;
   const hn = document.getElementById('cloze-hint-note');
-  if (hn) { const a = clozeAnswers[cur]; hn.textContent = (a && hintsOn()) ? ' · hint: ' + HINT_LABELS[hintLevel(card, a)] : ''; }
+  if (hn) { const a = clozeAnswers[cur]; hn.textContent = (a && hintsOn(card)) ? ' · hint: ' + HINT_LABELS[hintLevel(card, a)] : ''; }
   if (mainArea) mainArea.scrollTop = scrollY;
 }
 
@@ -5297,9 +5275,6 @@ function applyPalette() {
   const box = document.getElementById('pal-swatches');
   if (box) box.innerHTML = Object.entries(PALETTES).map(([k, p]) =>
     `<span class="pal-sw${k === pal ? ' on' : ''}" title="${p.name}" style="background:linear-gradient(135deg,${p.light} 50%,${p.dark} 50%)" onclick="event.stopPropagation();setPalette('${k}')"></span>`).join('');
-  const hc = document.getElementById('hint-chips');
-  if (hc) { const hm = hintsOn() ? 'fade' : 'off'; hc.innerHTML = [['fade', 'Fading'], ['off', 'Off']].map(([k, n]) =>
-    `<button class="font-chip${k === hm ? ' on' : ''}" title="${k === 'fade' ? 'New blanks show a letter pattern that fades as you get them right' : 'No hints'}" onclick="event.stopPropagation();setHintMode('${k}')">${n}</button>`).join(''); }
   const fc = document.getElementById('font-chips');
   if (fc) fc.innerHTML = Object.entries(CARDFONTS).map(([k, n]) =>
     `<button class="font-chip${k === cf ? ' on' : ''}" data-f="${k}" title="${n}" onclick="event.stopPropagation();setCardFont('${k}')">${n}</button>`).join('');
