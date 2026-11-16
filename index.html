@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Meno</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' gradientUnits='userSpaceOnUse' x1='6' y1='6' x2='26' y2='26'%3E%3Cstop offset='0' stop-color='%23ffffff'/%3E%3Cstop offset='0.6' stop-color='%23c4b5fd'/%3E%3Cstop offset='1' stop-color='%23818cf8'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x='.75' y='.75' width='30.5' height='30.5' rx='7.5' fill='%23000' stroke='%232e2e33' stroke-width='1.5'/%3E%3Cpath d='M16 5.5C22.500 5.500 25 12 20.500 15.500' transform='rotate(0 16 16)' fill='none' stroke='url(%23g)' stroke-width='3.400' stroke-linecap='round'/%3E%3Cpath d='M16 5.5C22.500 5.500 25 12 20.500 15.500' transform='rotate(120 16 16)' fill='none' stroke='url(%23g)' stroke-width='3.400' stroke-linecap='round'/%3E%3Cpath d='M16 5.5C22.500 5.500 25 12 20.500 15.500' transform='rotate(240 16 16)' fill='none' stroke='url(%23g)' stroke-width='3.400' stroke-linecap='round'/%3E%3C/svg%3E">
+<title>Noto</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230b0b0c'/%3E%3Cpath d='M17.5 50V31a15 15 0 0 1 30 0V50' fill='none' stroke='%23fff' stroke-width='11'/%3E%3C/svg%3E">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Newsreader:ital,wght@0,400;0,500;0,600;1,400&family=Nunito:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
@@ -1145,7 +1145,7 @@ body:not(.dark) .review-wrap{position:relative}
 </head>
 <body>
 <nav>
-  <div class="nav-logo" onclick="renderHome()" title="Home"><svg class="logo-mark" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="12" stroke="currentColor" stroke-width="3.400" style="color:var(--text)"/><circle cx="16" cy="16" r="4.500" fill="#10a37f"/></svg><span class="logo-word">meno</span></div>
+  <div class="nav-logo" onclick="renderHome()" title="Home"><svg class="logo-mark" viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="12" stroke="currentColor" stroke-width="3.400" style="color:var(--text)"/><circle cx="16" cy="16" r="4.500" fill="#10a37f"/></svg><span class="logo-word">noto</span></div>
   <button class="ab-search" onclick="arcOpenPalette()" title="Search (Ctrl/⌘ K)"><span class="ab-search-text">Search</span><span class="ab-search-ico"><svg width="14" height="14" viewBox="0 0 32 32" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round"><circle cx="13" cy="13" r="9"/><path d="m20 20 9 9"/></svg></span></button>
   <div class="nav-right">
     <button class="focus-btn" id="focus-nav-btn" onclick="handleFocusNavClick()">
@@ -1494,7 +1494,7 @@ function exportData() {
   const a = document.createElement('a');
   const date = new Date().toISOString().slice(0, 10);
   a.href = url;
-  a.download = `meno-backup-${date}.json`;
+  a.download = `noto-backup-${date}.json`;
   a.click();
   URL.revokeObjectURL(url);
 }
@@ -1524,7 +1524,7 @@ function importData(e) {
       renderSidebar();
       alert(`Import complete. Added ${(imported.decks||[]).filter(d=>!existingDeckIds.has(d.id)).length} decks and ${(imported.cards||[]).filter(c=>!existingCardIds.has(c.id)).length} cards.`);
     } catch {
-      alert('Could not read file — make sure it\'s a valid Meno backup.');
+      alert('Could not read file — make sure it\'s a valid Noto backup.');
     }
   };
   reader.readAsText(file);
@@ -3914,7 +3914,7 @@ function updateSessionPanel() {
   if (miniTopic) miniTopic.textContent = focusTopic;
 
   updateNavBtn();
-  document.title = `${timeStr} — ${focusTopic} · Meno`;
+  document.title = `${timeStr} — ${focusTopic} · Noto`;
 }
 
 function updateNavBtn() {
@@ -3937,7 +3937,7 @@ function updateNavBtn() {
 }
 
 function timerComplete() {
-  document.title = 'Meno';
+  document.title = 'Noto';
   const durationMins = focusDuration;
   const cardsReviewed = revIdx > 0 ? revIdx : 0;
   pendingSessionData = {
@@ -3974,7 +3974,7 @@ function endFocusSession() {
   document.getElementById('focus-session-panel').classList.remove('show');
   focusMode = null;
   updateNavBtn();
-  document.title = 'Meno';
+  document.title = 'Noto';
   showSummary(pendingSessionData);
 }
 
@@ -3994,7 +3994,7 @@ function breakComplete() {
   focusMode = null;
   document.getElementById('focus-session-panel').classList.remove('show');
   updateNavBtn();
-  document.title = 'Meno';
+  document.title = 'Noto';
   // gentle prompt to start next session
   document.getElementById('focus-nav-label').textContent = 'Focus ✓';
   setTimeout(() => { if (!focusMode) updateNavBtn(); }, 3000);
@@ -4453,7 +4453,7 @@ function isCliMulti(card) { return Array.isArray(card.cliSteps) && card.cliSteps
 
 function updateCliStepUI(card) {
   const total = card.cliSteps.length;
-  document.getElementById('cli-step-label').textContent = `zsh — meno · step ${cliStepIdx + 1} of ${total}`;
+  document.getElementById('cli-step-label').textContent = `zsh — noto · step ${cliStepIdx + 1} of ${total}`;
   document.getElementById('cli-input').placeholder = `command ${cliStepIdx + 1} of ${total}…`;
   document.getElementById('cli-check-btn').textContent = cliStepIdx + 1 < total ? 'Check step' : 'Check last step';
 }
@@ -4527,7 +4527,7 @@ function checkCliStep(card, giveUp) {
   // last step done: close the terminal, score the card, offer the rating buttons
   inp.disabled = true;
   document.getElementById('cli-prompt-row').style.display = 'none';
-  document.getElementById('cli-step-label').textContent = 'zsh — meno · done';
+  document.getElementById('cli-step-label').textContent = 'zsh — noto · done';
   document.getElementById('cli-step-btns').style.display = 'none';
   const correct = cliStepResults.filter(Boolean).length, total = cliStepResults.length;
   if (card.cliHint && correct < total) document.getElementById('cli-result').innerHTML = `<div class="cli-hint-line">hint: ${esc(card.cliHint)}</div>`;
@@ -4545,7 +4545,7 @@ function renderCliRev(main, card, pct) {
     <div class="cli-terminal">
       <div class="cli-titlebar">
         <span class="cli-dot red"></span><span class="cli-dot yellow"></span><span class="cli-dot green"></span>
-        <span class="cli-titlebar-label">zsh — meno</span>
+        <span class="cli-titlebar-label">zsh — noto</span>
       </div>
       <div class="cli-body">
         <div class="cli-comment-line">${esc(card.cliPrompt || '')}</div>
@@ -5414,7 +5414,7 @@ function renderHome() {
   </div>`;
 }
 
-// ── Meno Visual 2 ──
+// ── Noto (Visual 2) ──
 renderHome();
 </script>
 
