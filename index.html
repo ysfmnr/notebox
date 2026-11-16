@@ -1066,6 +1066,7 @@ body:not(.dark) .review-wrap{position:relative}
   body[data-cardfont=rounded] .flip-content, body[data-cardfont=rounded] .cloze-display, body[data-cardfont=rounded] .deck-title, body[data-cardfont=rounded] .card-row-front { font-weight: 600; }
   body[data-cardfont=mono] { --card-font: 'JetBrains Mono', ui-monospace, monospace; --card-ls: -0.02em; }
   body[data-cardfont=mono] .flip-content, body[data-cardfont=mono] .cloze-display, body[data-cardfont=mono] .card-row-front, body[data-cardfont=mono] .cq-box { font-size: .92em; }
+  .cz-hint { color: var(--text-faint); letter-spacing: .12em; font-weight: 500; padding: 0 3px; white-space: pre-wrap; }
   .pal-sw { width: 26px; height: 26px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: transform .12s; box-shadow: inset 0 0 0 1px rgba(128,128,128,.4); }
   .pal-sw:hover { transform: scale(1.12); }
   .pal-sw.on { border-color: var(--bg-card); box-shadow: 0 0 0 2px var(--text); }
@@ -1172,6 +1173,7 @@ body:not(.dark) .review-wrap{position:relative}
         <div class="acc-row"><div class="acc-label">Accent colour</div><div class="acc-swatches" id="acc-swatches"></div></div>
         <div class="acc-row"><div class="acc-label">Palette</div><div class="acc-swatches" id="pal-swatches"></div></div>
         <div class="acc-row"><div class="acc-label">Card font</div><div class="font-chips" id="font-chips"></div></div>
+        <div class="acc-row"><div class="acc-label">Cloze hints</div><div class="font-chips" id="hint-chips"></div></div>
         <button class="theme-toggle-btn" id="theme-toggle-btn" onclick="toggleAppTheme()" title="Toggle dark mode">🌙</button>
       </div>
     </div>
@@ -1850,9 +1852,28 @@ function pickReviewBlanks(card) {
   scored.sort((x, y) => y.score - x.score);
   return scored.slice(0, want).map(x => x.a).sort((x, y) => x.idx - y.idx);
 }
+// ─── Fading hints: a new blank shows a letter pattern; each correct answer in a row takes some of it away ───
+const HINTS_KEY = 'meno_hints_v1';
+function hintsOn() { return lsGet(HINTS_KEY, 'fade') === 'fade'; }
+function hintLevel(card, a) {
+  const st = (card.blankStats || {})[blankKey(a)];
+  const s = st ? (st.streak || 0) : 0;
+  return s >= 2 ? 2 : s;          // 0 = pattern, 1 = first letter, 2 = nothing
+}
+function hintText(answer, level) {
+  const chars = [...String(answer)], isW = ch => /[\p{L}\p{N}]/u.test(ch);
+  if (level === 0) {
+    return chars.map((ch, i) => !isW(ch) ? ch : (i === 0 || !isW(chars[i - 1]) ? ch : '_')).join('\u200a');
+  }
+  const first = chars.find(isW);
+  return first ? first + '\u2026' : '';
+}
+const HINT_LABELS = ['letter pattern', 'first letter', 'no hint'];
+function setHintMode(m) { try { localStorage.setItem(HINTS_KEY, m); } catch (e) {} applyPalette(); }
 function bumpBlankStat(card, a, ok) {
   card.blankStats = card.blankStats || {};
   const k = blankKey(a), st = card.blankStats[k] || { seen: 0, miss: 0, last: 0 };
+  st.streak = ok ? (st.streak || 0) + 1 : 0;      // consecutive correct answers: drives the fading hints
   st.seen++; if (!ok) st.miss++; else if (st.miss > 0 && st.seen % 3 === 0) st.miss--;   // misses fade as you get it right
   st.last = Date.now(); card.blankStats[k] = st;
 }
@@ -3584,7 +3605,7 @@ function renderClozeRev(main, card, pct) {
   main.innerHTML = `<div class="review-wrap fs-${sz}">
     ${progressHTML(pct)}
     <div class="session-box">
-      <div class="session-label">Fill in the blank · <span id="blank-counter">1 / ${clozeAnswers.length}</span></div>
+      <div class="session-label">Fill in the blank · <span id="blank-counter">1 / ${clozeAnswers.length}</span><span id="cloze-hint-note" style="color:var(--text-faint)"></span></div>
       <div class="cloze-display" id="cloze-display"></div>
     </div>
     <div class="input-row" id="cloze-input-row">
@@ -3629,7 +3650,9 @@ function renderClozeStep(card) {
       const col = ok ? 'var(--accent)' : 'var(--red)';
       return `<span style="color:${col};border-bottom:2px solid ${col};padding:0 3px;">${esc(clozeAnswers[i].answer)}</span>`;
     } else if (i === cur) {
-      return `<span style="display:inline-block;min-width:80px;border-bottom:2px solid var(--accent);height:1.3em;vertical-align:middle;"></span>`;
+      const lv = (hintsOn() && !clozeAnswers[i]._retry) ? hintLevel(card, clozeAnswers[i]) : 2;
+      const ht = lv < 2 ? hintText(clozeAnswers[i].answer, lv) : '';
+      return `<span class="cz-blank" style="display:inline-block;min-width:80px;border-bottom:2px solid var(--accent);min-height:1.3em;vertical-align:middle;">${ht ? `<span class="cz-hint">${esc(ht)}</span>` : ''}</span>`;
     } else {
       return `<span style="background:rgba(255,255,255,0.06);padding:0 4px;border-radius:2px;color:var(--text-muted)">[...]</span>`;
     }
@@ -3641,6 +3664,8 @@ function renderClozeStep(card) {
   if (d) d.innerHTML = html;
   const ctr = document.getElementById('blank-counter');
   if (ctr) ctr.textContent = Math.min(cur + 1, clozeAnswers.length) + ' / ' + clozeAnswers.length;
+  const hn = document.getElementById('cloze-hint-note');
+  if (hn) { const a = clozeAnswers[cur]; hn.textContent = (a && hintsOn()) ? ' · hint: ' + HINT_LABELS[hintLevel(card, a)] : ''; }
   if (mainArea) mainArea.scrollTop = scrollY;
 }
 
@@ -5272,6 +5297,9 @@ function applyPalette() {
   const box = document.getElementById('pal-swatches');
   if (box) box.innerHTML = Object.entries(PALETTES).map(([k, p]) =>
     `<span class="pal-sw${k === pal ? ' on' : ''}" title="${p.name}" style="background:linear-gradient(135deg,${p.light} 50%,${p.dark} 50%)" onclick="event.stopPropagation();setPalette('${k}')"></span>`).join('');
+  const hc = document.getElementById('hint-chips');
+  if (hc) { const hm = hintsOn() ? 'fade' : 'off'; hc.innerHTML = [['fade', 'Fading'], ['off', 'Off']].map(([k, n]) =>
+    `<button class="font-chip${k === hm ? ' on' : ''}" title="${k === 'fade' ? 'New blanks show a letter pattern that fades as you get them right' : 'No hints'}" onclick="event.stopPropagation();setHintMode('${k}')">${n}</button>`).join(''); }
   const fc = document.getElementById('font-chips');
   if (fc) fc.innerHTML = Object.entries(CARDFONTS).map(([k, n]) =>
     `<button class="font-chip${k === cf ? ' on' : ''}" data-f="${k}" title="${n}" onclick="event.stopPropagation();setCardFont('${k}')">${n}</button>`).join('');
