@@ -1835,9 +1835,23 @@ let clozeAll = [];
 function blankKey(a) { return String(a.answer).trim().toLowerCase(); }
 // ─── Hints: per card, on or off. On shows each blank as its first letter plus one underscore per remaining letter ───
 function hintsOn(card) { return !!card && (card.hints === 'on' || card.hints === 'fade'); }   // 'fade' = the old name, still treated as on
-function hintText(answer) {
-  const chars = [...String(answer)], isW = ch => /[\p{L}\p{N}]/u.test(ch);
-  return chars.map((ch, i) => !isW(ch) ? ch : (i === 0 || !isW(chars[i - 1]) ? ch : '_')).join('\u200a');
+function hintText(answer, extra) {
+  // first letter of each word + underscores; `extra` = how many more letters to show at the start of every word
+  const chars = [...String(answer)], isW = ch => /[\p{L}\p{N}]/u.test(ch), ex = extra || 0;
+  let pos = 0;
+  return chars.map(ch => { if (!isW(ch)) { pos = 0; return ch; } return pos++ <= ex ? ch : '_'; }).join('\u200a');
+}
+function revealMoreHint() {
+  const card = revQueue[revIdx];
+  if (!card || card.type !== 'cloze') return;
+  const ans = clozeAnswers[clozeBlankIdx]; if (!ans) return;
+  if (!hintsOn(card)) { card.hints = 'on'; save(); const b = document.getElementById('cz-hint-toggle'); if (b) { b.classList.add('on'); b.textContent = 'Hint: on'; } }
+  else {
+    const longest = Math.max(...String(ans.answer).split(/[^\p{L}\p{N}]+/u).map(w => [...w].length), 1);
+    if ((ans._extra || 0) < longest - 1) ans._extra = (ans._extra || 0) + 1;
+  }
+  renderClozeStep(card);
+  const f = document.getElementById('cloze-ans'); if (f) f.focus({ preventScroll: true });
 }
 function bumpBlankStat(card, a, ok) {
   card.blankStats = card.blankStats || {};
@@ -3575,7 +3589,8 @@ function renderClozeRev(main, card, pct) {
     ${progressHTML(pct)}
     <div class="session-box">
       <div class="session-label" style="display:flex;align-items:center;gap:8px;">Fill in the blank · <span id="blank-counter">1 / ${clozeAnswers.length}</span>
-        <button class="cz-hint-toggle${hintsOn(card) ? ' on' : ''}" id="cz-hint-toggle" onclick="toggleCardHints()" title="Turn hints on or off for this card (Alt+H)">Hint: ${hintsOn(card) ? 'on' : 'off'}</button></div>
+        <button class="cz-hint-toggle${hintsOn(card) ? ' on' : ''}" id="cz-hint-toggle" onclick="toggleCardHints()" title="Turn hints on or off for this card (Alt+H)">Hint: ${hintsOn(card) ? 'on' : 'off'}</button>
+        <button class="cz-hint-toggle" id="cz-more-hint" onclick="revealMoreHint()" title="Show one more letter of this blank (Alt+L)">+ letter</button></div>
       <div class="cloze-display" id="cloze-display"></div>
     </div>
     <div class="input-row" id="cloze-input-row">
@@ -3593,7 +3608,7 @@ function renderClozeRev(main, card, pct) {
   renderClozeStep(card);
   setTimeout(() => {
     const f = document.getElementById('cloze-ans');
-    if (f) { f.focus({ preventScroll: true }); f.onkeydown = e => { if (e.altKey && (e.key === 'h' || e.key === 'H' || e.code === 'KeyH')) { e.preventDefault(); toggleCardHints(); return; } if (e.key === 'Enter') { e.preventDefault(); if (e.ctrlKey || e.metaKey) skipClozeBlank(true); else if (e.shiftKey) skipClozeBlank(false); else checkCloze(); } }; }
+    if (f) { f.focus({ preventScroll: true }); f.onkeydown = e => { if (e.altKey && (e.key === 'h' || e.key === 'H' || e.code === 'KeyH')) { e.preventDefault(); toggleCardHints(); return; } if (e.altKey && (e.key === 'l' || e.key === 'L' || e.code === 'KeyL')) { e.preventDefault(); revealMoreHint(); return; } if (e.key === 'Enter') { e.preventDefault(); if (e.ctrlKey || e.metaKey) skipClozeBlank(true); else if (e.shiftKey) skipClozeBlank(false); else checkCloze(); } }; }
   }, 50);
 }
 
@@ -3631,7 +3646,7 @@ function renderClozeStep(card) {
       const col = ok ? 'var(--accent)' : 'var(--red)';
       return `<span style="color:${col};border-bottom:2px solid ${col};padding:0 3px;">${esc(clozeAnswers[i].answer)}</span>`;
     } else if (i === cur) {
-      const ht = hintsOn(card) ? hintText(clozeAnswers[i].answer) : '';
+      const ht = hintsOn(card) ? hintText(clozeAnswers[i].answer, clozeAnswers[i]._extra) : '';
       return `<span class="cz-blank" style="display:inline-block;min-width:80px;border-bottom:2px solid var(--accent);min-height:1.3em;vertical-align:middle;">${ht ? `<span class="cz-hint">${esc(ht)}</span>` : ''}</span>`;
     } else {
       return `<span style="background:rgba(255,255,255,0.06);padding:0 4px;border-radius:2px;color:var(--text-muted)">[...]</span>`;
