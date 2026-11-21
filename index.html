@@ -128,6 +128,18 @@
   /* linked card viewer */
   .linked-card-overlay { display: none; position: fixed; inset: 0; background: rgba(var(--scrim),0.32); z-index: 500; align-items: center; justify-content: center; }
   .linked-card-overlay.open { display: flex; }
+  /* passages: {name} links that open a popup with longer text */
+  .passage-link { color: var(--accent); border-bottom: 1px dashed var(--accent); cursor: pointer; white-space: nowrap; }
+  .passage-link::before { content: '❝'; font-size: 11px; opacity: .7; margin-right: 3px; }
+  .passage-link:hover { opacity: .75; }
+  .passage-text { font-size: 18px; line-height: 1.9; color: var(--text-muted); white-space: pre-wrap; unicode-bidi: plaintext; }
+  .passage-text.latin { font-style: italic; }   /* same grey italic as _text_; skipped for Arabic, which has no italic */
+  .passage-title { font-size: 12px; color: var(--text-faint); font-family: 'Inter', -apple-system, sans-serif; font-weight: 600; letter-spacing: .02em; margin-bottom: 12px; }
+  .passage-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 4px; max-height: 84px; overflow-y: auto; }
+  .passage-chip { font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border-strong); color: var(--text-muted); cursor: pointer; background: none; font-family: inherit; }
+  .passage-chip:hover { color: var(--text); border-color: var(--text-faint); }
+  #pi-text, #pe-text { min-height: 120px; unicode-bidi: plaintext; }
+
   .linked-card-modal { background: var(--bg-card); border: 1px solid var(--border-strong); border-radius: 12px; width: 560px; max-width: calc(100vw - 40px); max-height: 80vh; overflow-y: auto; padding: 28px; box-shadow: var(--shadow-lg); }
   .lcm-deck { font-size: 11px; color: var(--text-faint); font-family: 'Inter', -apple-system, sans-serif; font-weight: 600; letter-spacing: 0.02em; margin-bottom: 10px; }
   .lcm-front { color: var(--text); line-height: 1.5; margin-bottom: 16px; }
@@ -1237,6 +1249,7 @@ body:not(.dark) .review-wrap{position:relative}
         <button class="rich-btn" onclick="insertCodeBlockBtn('ef')">{ } block</button>
         <button class="rich-btn" onclick="insertExtLink('ef')" title="Insert external link">🔗 url</button>
         <button class="rich-btn" onclick="openLinkSearch('ef')" title="Link to another card">[[ link</button>
+        <button class="rich-btn" onclick="openPassageInsert('ef')" title="Link to a longer passage (a verse, a quote…) that opens in a popup">{ } passage</button>
       </div>
       <textarea class="editor-ta" id="ef" placeholder="Question or prompt..." onkeydown="taKey(event,'ef')"></textarea>
 
@@ -1249,6 +1262,7 @@ body:not(.dark) .review-wrap{position:relative}
         <button class="rich-btn" onclick="insertCodeBlockBtn('eb')">{ } block</button>
         <button class="rich-btn" onclick="insertExtLink('eb')" title="Insert external link">🔗 url</button>
         <button class="rich-btn" onclick="openLinkSearch('eb')" title="Link to another card">[[ link</button>
+        <button class="rich-btn" onclick="openPassageInsert('eb')" title="Link to a longer passage (a verse, a quote…) that opens in a popup">{ } passage</button>
       </div>
       <textarea class="editor-ta" id="eb" placeholder="Answer..." onkeydown="taKey(event,'eb')"></textarea>
     </div>
@@ -1264,6 +1278,7 @@ body:not(.dark) .review-wrap{position:relative}
         <button class="rich-btn" onclick="insertBulletBtn('ec')">• list</button>
         <button class="rich-btn" onclick="insertCodeBlockBtn('ec')">{ } block</button>
         <button class="rich-btn" onclick="insertExtLink('ec')" title="Insert external link">🔗 url</button>
+        <button class="rich-btn" onclick="openPassageInsert('ec')" title="Link to a longer passage (a verse, a quote…) that opens in a popup">{ } passage</button>
         <button class="rich-btn" onclick="insertClozeTag()">+ cloze</button>
         <button class="rich-btn" onclick="insertWordCloze()" title="Cloze each word individually">+ word cloze</button>
       </div>
@@ -1478,10 +1493,11 @@ function loadState() {
     const s = localStorage.getItem(SK);
     const st = s ? JSON.parse(s) : fresh();
     st.cards = retireAyahCards(st.cards);
+    st.passages = st.passages || {};
     return st;
   } catch { return fresh(); }
 }
-function fresh() { return { folders: [], decks: [], cards: [] }; }
+function fresh() { return { folders: [], decks: [], cards: [], passages: {} }; }
 function save() {
   localStorage.setItem(SK, JSON.stringify(state));
 }
@@ -1519,6 +1535,8 @@ function importData(e) {
       (imported.templates || []).forEach(t => { if (!state.templates.some(x => x.id === t.id)) state.templates.push(t); });
       retireAyahCards(imported.cards || []);   // backs up any old ayah cards instead of importing them
       (imported.cards || []).filter(c => c.type !== 'ayah').forEach(c => { if (!existingCardIds.has(c.id)) state.cards.push(c); });
+      state.passages = state.passages || {};
+      Object.entries(imported.passages || {}).forEach(([k, v]) => { if (!state.passages[k]) state.passages[k] = v; });
       save();
       renderSidebar();
       alert(`Import complete. Added ${(imported.decks||[]).filter(d=>!existingDeckIds.has(d.id)).length} decks and ${(imported.cards||[]).filter(c=>!existingCardIds.has(c.id)).length} cards.`);
@@ -1774,6 +1792,13 @@ function md(text) {
   h = h.replace(/\[\[([^\]|]+)\|([^\]]+)\]\]/g, (_, cardId, title) => {
     return `<span class="card-link" onclick="event.stopPropagation();openLinkedCard('${escAttr(cardId)}')">${title}</span>`;
   });
+  // passage links {name} — only when a passage with that name exists, so code braces and {{c1::}} are left alone
+  if (state.passages && Object.keys(state.passages).length) {
+    h = h.replace(/\{([^{}\n]{1,80})\}/g, (m, nm) => {
+      const k = passageKey(nm.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&'));
+      return state.passages[k] ? `<span class="passage-link" onclick="event.stopPropagation();openPassage('${escAttr(k)}')">${nm}</span>` : m;
+    });
+  }
   return h;
 }
 
@@ -4202,6 +4227,88 @@ function insertLink(cardId) {
 }
 
 // ─── LINKED CARD VIEWER ───────────────────────────────────────────────────────
+
+// ─── PASSAGES: {name} links in card text open a popup with longer text ───────
+function passageKey(n) { return String(n || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+let passageInsertField = null, passageInsertSel = null, passageEditKey = null, passageViewKey = null;
+
+function openPassage(key) {
+  const p = (state.passages || {})[key]; if (!p) return;
+  passageViewKey = key;
+  document.getElementById('pv-title').textContent = p.name;
+  document.getElementById('pv-text').textContent = p.text || '';
+  document.getElementById('pv-text').classList.toggle('latin', !/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/.test(p.text || ''));
+  document.getElementById('passage-overlay').classList.add('open');
+}
+function closePassage() { document.getElementById('passage-overlay').classList.remove('open'); }
+function editPassage() {
+  const k = passageViewKey; closePassage();
+  passageInsertField = null; passageEditKey = k;
+  showPassageEdit();
+}
+// opened from the card editor: insert a {name} link at the cursor (a selected phrase becomes the name)
+function openPassageInsert(fieldId) {
+  const el = document.getElementById(fieldId);
+  passageInsertField = fieldId; passageEditKey = null;
+  passageInsertSel = el ? [el.selectionStart, el.selectionEnd] : null;
+  const sel = el ? el.value.slice(el.selectionStart, el.selectionEnd).trim() : '';
+  showPassageEdit(sel);
+}
+function showPassageEdit(prefName) {
+  state.passages = state.passages || {};
+  const editing = passageEditKey && state.passages[passageEditKey];
+  const nm = document.getElementById('pe-name'), tx = document.getElementById('pe-text');
+  document.getElementById('pe-title').textContent = editing ? 'Edit passage' : 'Add a passage';
+  document.getElementById('pe-save').textContent = editing ? 'Save' : 'Insert';
+  document.getElementById('pe-delete').style.display = editing ? 'inline-block' : 'none';
+  nm.value = editing ? state.passages[passageEditKey].name : (prefName || '');
+  tx.value = editing ? state.passages[passageEditKey].text : '';
+  if (!editing && nm.value) { const ex = state.passages[passageKey(nm.value)]; if (ex) tx.value = ex.text; }
+  renderPassageChips();
+  document.getElementById('passage-edit-overlay').classList.add('open');
+  setTimeout(() => (nm.value ? tx : nm).focus(), 50);
+}
+function renderPassageChips() {
+  const box = document.getElementById('pe-chips');
+  if (passageEditKey) { box.innerHTML = ''; return; }
+  const q = passageKey(document.getElementById('pe-name').value);
+  const all = Object.entries(state.passages || {}).filter(([k]) => !q || k.includes(q)).slice(0, 24);
+  box.innerHTML = all.length ? all.map(([k, p]) => `<button class="passage-chip" type="button" onclick="pickPassageChip('${escAttr(k)}')">${esc(p.name)}</button>`).join('') : '';
+}
+function pickPassageChip(k) {
+  const p = state.passages[k]; if (!p) return;
+  document.getElementById('pe-name').value = p.name;
+  document.getElementById('pe-text').value = p.text || '';
+  document.getElementById('pe-text').focus();
+}
+function closePassageEdit() { document.getElementById('passage-edit-overlay').classList.remove('open'); }
+function savePassageEdit() {
+  state.passages = state.passages || {};
+  const name = document.getElementById('pe-name').value.replace(/[{}\n]/g, ' ').replace(/\s+/g, ' ').trim();
+  const text = document.getElementById('pe-text').value.trim();
+  if (!name) { document.getElementById('pe-name').focus(); return; }
+  if (!text) { document.getElementById('pe-text').focus(); return; }
+  const key = passageKey(name);
+  if (passageEditKey && passageEditKey !== key) delete state.passages[passageEditKey];   // renamed
+  state.passages[key] = { name, text };
+  save();
+  closePassageEdit();
+  if (passageInsertField) {
+    const el = document.getElementById(passageInsertField);
+    if (el) {
+      const [a, b] = passageInsertSel || [el.value.length, el.value.length];
+      const tag = '{' + name + '}';
+      el.value = el.value.slice(0, a) + tag + el.value.slice(b);
+      el.focus(); el.selectionStart = el.selectionEnd = a + tag.length;
+    }
+    passageInsertField = null;
+  }
+}
+function deletePassage() {
+  if (!passageEditKey || !confirm('Delete this passage? Links to it in your cards will turn back into plain text.')) return;
+  delete state.passages[passageEditKey]; save(); closePassageEdit();
+}
+
 function openLinkedCard(cardId) {
   const card = state.cards.find(c => c.id === cardId);
   if (!card) return;
@@ -5551,6 +5658,35 @@ renderHome();
     <div class="lcm-actions">
       <button class="btn-secondary" onclick="closeLinkedCard()">Close</button>
       <button class="btn-secondary" id="lcm-edit-btn" onclick="openLinkedCardEdit()">Edit card</button>
+    </div>
+  </div>
+</div>
+
+<!-- PASSAGE VIEWER -->
+<div class="linked-card-overlay" id="passage-overlay" onclick="if(event.target===this)closePassage()" style="z-index:520;">
+  <div class="linked-card-modal">
+    <div class="passage-title" id="pv-title"></div>
+    <div class="passage-text" id="pv-text" dir="auto"></div>
+    <div class="lcm-actions">
+      <button class="btn-secondary" onclick="closePassage()">Close</button>
+      <button class="btn-secondary" onclick="editPassage()">Edit passage</button>
+    </div>
+  </div>
+</div>
+
+<!-- PASSAGE INSERT / EDIT -->
+<div class="overlay" id="passage-edit-overlay" onclick="if(event.target===this)closePassageEdit()" style="z-index:530;">
+  <div class="modal modal-sm" style="width:520px;">
+    <div class="modal-title" id="pe-title">Add a passage</div>
+    <div class="field-label">Name <span style="color:var(--text-faint);font-size:11px;">— this is what you type in the card as {name}</span></div>
+    <input class="text-input" id="pe-name" type="text" placeholder="e.g. Surah al-Baqarah 2:93" autocomplete="off" oninput="renderPassageChips()" onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('pe-text').focus();}" />
+    <div class="passage-chips" id="pe-chips"></div>
+    <div class="field-label" style="margin-top:10px;">Text</div>
+    <textarea class="editor-ta" id="pe-text" dir="auto" placeholder="Paste the full verse, quote or notes here…" onkeydown="if((event.metaKey||event.ctrlKey)&&event.key==='Enter'){event.preventDefault();savePassageEdit();}"></textarea>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="pe-delete" onclick="deletePassage()" style="margin-right:auto;display:none;">Delete</button>
+      <button class="btn-cancel" onclick="closePassageEdit()">Cancel</button>
+      <button class="btn-save" id="pe-save" onclick="savePassageEdit()">Insert</button>
     </div>
   </div>
 </div>
