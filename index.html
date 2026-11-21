@@ -1155,6 +1155,26 @@ body:not(.dark) .review-wrap{position:relative}
 
   #mini-toast { position: fixed; left: 50%; bottom: 28px; transform: translate(-50%, 14px); z-index: 900; padding: 11px 20px; border-radius: 999px; font-size: 13px; background: var(--text); color: var(--bg); box-shadow: 0 12px 36px rgba(0,0,0,.4); opacity: 0; pointer-events: none; transition: opacity .18s, transform .18s; max-width: 90vw; }
   #mini-toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ═══ UI PASS — delete this block to undo ═══ */
+.app-layout{grid-template-columns:252px minmax(0,1fr)!important}
+.nt-cover{height:120px!important}
+#due-pill{display:none!important}
+.review-wrap.cloze-rev .session-box{min-height:150px!important;padding:26px 34px!important}
+#cloze-input-row{flex-wrap:wrap}
+.cz-keys{flex-basis:100%;font-size:11.5px;color:var(--text-faint);line-height:1.8;margin-top:-2px}
+.cz-keys kbd{font-family:'JetBrains Mono',monospace;font-size:10.5px;padding:1px 6px;border-radius:5px;border:1px solid var(--border-strong);color:var(--text-muted);background:transparent}
+.cz-hint-toggle{padding:4px 12px!important;font-size:12px!important}
+.cz-recap{margin:10px 0 6px}
+.cz-recap-h{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
+.cz-rc{display:flex;gap:10px;align-items:baseline;font-size:14.5px;padding:3px 0}
+.cz-rc .m{width:14px;flex-shrink:0;text-align:center}.cz-rc .m.ok{color:var(--accent)}.cz-rc .m.bad{color:var(--red)}.cz-rc .m.sk{color:var(--text-faint)}
+.cz-note{font-size:12.5px;color:var(--text-faint)}
+.mv-heat i{background:color-mix(in srgb,var(--text) 13%,transparent)}
+#card-overlay .modal-actions{position:sticky;bottom:-26px;z-index:5;margin:16px -26px -26px;padding:14px 26px;background:var(--bg-card);border-top:1px solid var(--border)}
+#card-overlay .deck-pick-row label[for="etype-select"]{min-width:0}
+.editor-type-row{display:none!important}
+/* ═══ end UI PASS ═══ */
 </style>
 </head>
 <body>
@@ -1227,6 +1247,10 @@ body:not(.dark) .review-wrap{position:relative}
     <div class="deck-pick-row" id="deck-pick-row"><label for="card-deck-pick">Add to deck</label><select id="card-deck-pick" style="display:none"></select>
       <div class="dp" id="dp"><button type="button" class="dp-btn" id="dp-btn" onclick="toggleDeckPick(event)"></button>
         <div class="dp-panel" id="dp-panel" onclick="event.stopPropagation()"><input id="dp-search" type="text" placeholder="Search decks…" autocomplete="off" oninput="renderDeckPickList()" onkeydown="deckPickKey(event)"><div id="dp-list"></div></div></div></div>
+    <div class="deck-pick-row" style="display:flex;"><label for="etype-select">Card type</label><select id="etype-select" onchange="setCardType(this.value)">
+      <option value="basic">Basic</option><option value="cloze">Cloze deletion</option><option value="code">Code recall</option><option value="cli">CLI recall</option>
+      <option value="vuln">Spot the flaw</option><option value="ab">Secure or insecure?</option><option value="order">Put in order</option><option value="match">Match pairs</option>
+    </select></div>
     <div class="editor-type-row">
       <button class="type-btn active" id="etype-basic" onclick="setCardType('basic')">Basic</button>
       <button class="type-btn" id="etype-cloze" onclick="setCardType('cloze')">Cloze deletion</button>
@@ -1242,28 +1266,18 @@ body:not(.dark) .review-wrap{position:relative}
     <div id="basic-fields">
       <div class="field-label">Front</div>
       <div class="rich-toolbar">
-        <button class="rich-btn" onclick="wrapSel('ef','**','**')" title="Cmd+B"><b>B</b></button>
-        <button class="rich-btn" onclick="wrapSel('ef','_','_')" title="Cmd+I"><em>I</em></button>
-        <button class="rich-btn" onclick="wrapSel('ef','`','`')" title="Cmd+E">code</button>
-        <button class="rich-btn" onclick="insertBulletBtn('ef')">• list</button>
-        <button class="rich-btn" onclick="insertCodeBlockBtn('ef')">{ } block</button>
-        <button class="rich-btn" onclick="insertExtLink('ef')" title="Insert external link">🔗 url</button>
-        <button class="rich-btn" onclick="openLinkSearch('ef')" title="Link to another card">[[ link</button>
-        <button class="rich-btn" onclick="openPassageInsert('ef')" title="Link to a longer passage (a verse, a quote…) that opens in a popup">{ } passage</button>
+        <button class="rich-btn" onclick="wrapSel(AF(),'**','**')" title="Cmd+B"><b>B</b></button>
+        <button class="rich-btn" onclick="wrapSel(AF(),'_','_')" title="Cmd+I"><em>I</em></button>
+        <button class="rich-btn" onclick="wrapSel(AF(),'`','`')" title="Cmd+E">code</button>
+        <button class="rich-btn" onclick="insertBulletBtn(AF())">• list</button>
+        <button class="rich-btn" onclick="insertCodeBlockBtn(AF())">{ } block</button>
+        <button class="rich-btn" onclick="insertExtLink(AF())" title="Insert external link">🔗 url</button>
+        <button class="rich-btn" onclick="openLinkSearch(AF())" title="Link to another card">[[ link</button>
+        <button class="rich-btn" onclick="openPassageInsert(AF())" title="Link to a longer passage (a verse, a quote…) that opens in a popup">{ } passage</button>
       </div>
       <textarea class="editor-ta" id="ef" placeholder="Question or prompt..." onkeydown="taKey(event,'ef')"></textarea>
 
       <div class="field-label">Back</div>
-      <div class="rich-toolbar">
-        <button class="rich-btn" onclick="wrapSel('eb','**','**')" title="Cmd+B"><b>B</b></button>
-        <button class="rich-btn" onclick="wrapSel('eb','_','_')" title="Cmd+I"><em>I</em></button>
-        <button class="rich-btn" onclick="wrapSel('eb','`','`')" title="Cmd+E">code</button>
-        <button class="rich-btn" onclick="insertBulletBtn('eb')">• list</button>
-        <button class="rich-btn" onclick="insertCodeBlockBtn('eb')">{ } block</button>
-        <button class="rich-btn" onclick="insertExtLink('eb')" title="Insert external link">🔗 url</button>
-        <button class="rich-btn" onclick="openLinkSearch('eb')" title="Link to another card">[[ link</button>
-        <button class="rich-btn" onclick="openPassageInsert('eb')" title="Link to a longer passage (a verse, a quote…) that opens in a popup">{ } passage</button>
-      </div>
       <textarea class="editor-ta" id="eb" placeholder="Answer..." onkeydown="taKey(event,'eb')"></textarea>
     </div>
 
@@ -2033,12 +2047,12 @@ function renderSidebar() {
 function deckItemHTML(d, ungrouped = false) {
   const cards = state.cards.filter(c => c.deckId === d.id);
   const due = cards.filter(c => c.due <= Date.now()).length;
-  return `<div class="deck-item${activeDeckId === d.id ? ' active' : ''}${ungrouped ? ' ungrouped' : ''}" onclick="selectDeck('${d.id}')">
+  return `<div class="deck-item${activeDeckId === d.id ? ' active' : ''}${ungrouped ? ' ungrouped' : ''}" onclick="selectDeck('${d.id}')" title="${esc(d.name)} — ${due} due · ${cards.length} card${cards.length === 1 ? '' : 's'}">
     <span class="nt-sq" style="${ntGrad(d.id + d.name)}"></span>
     <div class="deck-item-name">${esc(d.name)}</div>
     <div class="deck-item-right">
-      ${due > 0 ? `<span class="deck-item-due">${due}</span>` : ''}
-      <span class="deck-item-count">${cards.length}</span>
+      ${due > 0 ? `<span class="deck-item-due" title="${due} due">${due}</span>` : ''}
+      <span class="deck-item-count" title="${cards.length} cards">${cards.length}</span>
     </div>
   </div>`;
 }
@@ -2772,6 +2786,7 @@ function updateCliEditorMode() {
 
 function setCardType(t) {
   cardType = t;
+  { const sel = document.getElementById('etype-select'); if (sel) sel.value = t; }
   ['basic','cloze','code','cli','vuln','ab','order','match'].forEach(x => {
     const btn = document.getElementById('etype-' + x);
     const fields = document.getElementById(x + '-fields');
@@ -3064,6 +3079,9 @@ function deleteCard(id) {
 }
 
 // ─── TEXTAREA EDITOR ──────────────────────────────────────────────────────────
+let lastEF = 'ef';
+function AF() { return lastEF; }
+document.addEventListener('focusin', e => { if (e.target && (e.target.id === 'ef' || e.target.id === 'eb')) lastEF = e.target.id; });
 function wrapSel(id, before, after) {
   const el = document.getElementById(id);
   const s = el.selectionStart, e = el.selectionEnd;
@@ -3683,7 +3701,7 @@ function renderClozeRev(main, card, pct) {
   clozeCorrect = 0;
 
   const sz = card.fontSize || 'md';
-  main.innerHTML = `<div class="review-wrap fs-${sz}">
+  main.innerHTML = `<div class="review-wrap cloze-rev fs-${sz}">
     ${progressHTML(pct)}
     <div class="session-box">
       <div class="session-label" style="display:flex;align-items:center;gap:8px;">Fill in the blank · <span id="blank-counter">1 / ${clozeAnswers.length}</span>
@@ -3696,10 +3714,12 @@ function renderClozeRev(main, card, pct) {
       <button class="btn-check" onclick="checkCloze()">Check</button>
       <button class="btn-skip" onclick="skipClozeBlank(false)" title="Fill in this blank without being marked (Shift+Enter)">Show</button>
       <button class="btn-skip" onclick="skipClozeBlank(true)" title="Fill in every blank and move on, unmarked (Ctrl/⌘+Enter)">Reveal all</button>
+      <div class="cz-keys"><kbd>Enter</kbd> check · <kbd>Shift+Enter</kbd> show this blank · <kbd>⌘/Ctrl+Enter</kbd> reveal all · <kbd>Alt+H</kbd> hint · <kbd>Alt+L</kbd> +letter</div>
     </div>
     <div class="feedback-row">
       <span class="feedback" id="cloze-fb"></span>
     </div>
+    <div class="cz-recap" id="cloze-recap"></div>
     ${ratingHTML(revQueue[revIdx])}
   </div>`;
 
@@ -3773,6 +3793,14 @@ function finishCloze(card, input, fb) {
     fb.textContent = (perfect ? '✓ all correct' : `${clozeCorrect}/${graded} correct`) + (shown ? ` · ${shown} shown` : '');
     fb.className = 'feedback ' + (perfect ? 'ok' : 'bad');
   }
+  { // recap: what you wrote for each blank
+    const rc = document.getElementById('cloze-recap');
+    if (rc && total) rc.innerHTML = '<div class="cz-recap-h">Your answers</div>' + clozeAnswers.map(a => {
+      const mark = a._skip ? '<span class="m sk">◦</span>' : a._ok ? '<span class="m ok">✓</span>' : '<span class="m bad">✗</span>';
+      const extra = a._skip ? '<span class="cz-note">shown</span>' : (!a._ok && a._typed) ? `<span class="cz-note">you wrote “${esc(a._typed)}”</span>` : '';
+      return `<div class="cz-rc">${mark}<b>${esc(a.answer)}</b>${extra}</div>`;
+    }).join('');
+  }
   if (card.questions && card.questions.length && !card.questionsFirst) startClozeQuestions(card);
   else {
     if (card.questions && card.questions.length) fb.textContent += cqSummary();
@@ -3805,6 +3833,7 @@ function checkCloze() {
   if (!ans) return;
   const ok = norm(typed) === norm(ans.answer);
   ans._ok = ok;
+  ans._typed = typed;
   bumpBlankStat(card, ans, ok);
   if (ok) clozeCorrect++;
   const fb = document.getElementById('cloze-fb');
@@ -5588,7 +5617,7 @@ function homeStatsHTML() {
     <div class="mv-box mv-today" style="${ntGrad('today'+dayKey(now))}"><div><div class="big">${due} due</div><div class="sub">about ${Math.max(1,Math.round(due*0.4))} min · ${total} reviews in 36 weeks</div></div>${due&&dk?`<button onclick="(function(){const c=state.cards.find(c=>c.due<=Date.now());selectDeck(c.deckId);startReview(false)})()">Start now ↗</button>`:'<button onclick="openCardEditor()">Add a card</button>'}</div>
     <div class="mv-box"><h3>Next 14 days</h3><div class="mv-fc">${fc.map(v=>`<div title="${v}" style="height:${Math.max(3,v/fm*100)}%"></div>`).join('')}</div><div class="mv-fcl">${lbl}</div></div>
   </div>
-  <div class="ol-sec"><div class="mv-box"><h3>Memory activity</h3><div class="mv-heat" style="grid-template-columns:repeat(${W},1fr)">${cells.join('')}</div><div class="mv-cap">Tracks reviews from today onward · brighter = more reviews</div></div></div>`;
+  <div class="ol-sec"><div class="mv-box"><h3>Memory activity</h3><div class="mv-heat" style="grid-template-columns:repeat(${W},1fr)">${cells.join('')}</div><div class="mv-cap">${total ? 'Tracks reviews from today onward · brighter = more reviews' : 'No reviews yet — finish one today and your streak starts here'}</div></div></div>`;
 }
 
 function renderHome() {
