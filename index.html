@@ -1298,6 +1298,10 @@ body:not(.dark) .review-wrap{position:relative}
         <input type="checkbox" id="ecq-split" style="width:16px;height:16px;cursor:pointer;" />
         Answer in separate boxes — one per key point (for questions with 2+ points)
       </label>
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;cursor:pointer;font-size:13px;font-weight:500;">
+        <input type="checkbox" id="ecq-first" style="width:16px;height:16px;cursor:pointer;" />
+        Ask the questions first, before the blanks — answer from nothing
+      </label>
     </div>
 
     <!-- SPOT THE FLAW -->
@@ -2707,6 +2711,7 @@ function openCardEditor(cardId) {
       document.getElementById('ec').value = c.clozeText || '';
       document.getElementById('ecq').value = questionsToText(c.questions);
       document.getElementById('ecq-split').checked = !!c.questionsSplit;
+      document.getElementById('ecq-first').checked = !!c.questionsFirst;
       document.getElementById('ecloze-hints').value = hintsOn(c) ? 'on' : 'off';
     }
     currentEditorTags = [...(c.tags || [])];
@@ -2718,6 +2723,7 @@ function openCardEditor(cardId) {
     document.getElementById('ec').value = '';
     document.getElementById('ecq').value = '';
     document.getElementById('ecq-split').checked = false;
+    document.getElementById('ecq-first').checked = false;
     document.getElementById('ecloze-hints').value = 'off';
     document.getElementById('ecode-prompt').value = '';
     document.getElementById('ecode-answer').value = '';
@@ -2884,6 +2890,7 @@ function saveCard() {
     const ct = document.getElementById('ec').value.trim();
     const questions = parseQuestions(document.getElementById('ecq').value);
     const splitQ = document.getElementById('ecq-split').checked;
+    const firstQ = document.getElementById('ecq-first').checked;
     const hintsSel = document.getElementById('ecloze-hints').value;
     document.getElementById('ec').style.borderColor = (ct && ct.includes('{{c')) ? '' : 'var(--red)';
     if (!ct || !ct.includes('{{c')) return;
@@ -2893,6 +2900,7 @@ function saveCard() {
         c.clozeText = ct; c.type = 'cloze'; c.tags = [...currentEditorTags];
         if (questions.length) c.questions = questions; else delete c.questions;
         if (questions.length && splitQ) c.questionsSplit = true; else delete c.questionsSplit;
+        if (questions.length && firstQ) c.questionsFirst = true; else delete c.questionsFirst;
         delete c.varyBlanks;   // the old "vary blanks" option no longer exists
         if (hintsSel === 'on') c.hints = 'on'; else delete c.hints;
       }
@@ -2900,6 +2908,7 @@ function saveCard() {
       const card = { id: 'c_' + Date.now(), deckId: targetDeckId, type: 'cloze', clozeText: ct, interval: 1, due: Date.now(), ease: 2.5, reps: 0, tags: [...currentEditorTags] };
       if (questions.length) card.questions = questions;
       if (questions.length && splitQ) card.questionsSplit = true;
+      if (questions.length && firstQ) card.questionsFirst = true;
       if (hintsSel === 'on') card.hints = 'on';
       state.cards.push(card);
     }
@@ -3511,11 +3520,11 @@ function questionsToText(qs) {
 
 const cqNorm = s => String(s || '').toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
 
-let cqIdx = 0, cqCovered = 0, cqTotalPoints = 0;
+let cqIdx = 0, cqCovered = 0, cqTotalPoints = 0, cqMissed = [], cqRetryIdx = 0, cqRetryCovered = 0, cqRetryTotal = 0;
 
 // Called when the last blank has been answered on a card that has questions.
 function startClozeQuestions(card) {
-  cqIdx = 0; cqCovered = 0; cqTotalPoints = 0;
+  cqIdx = 0; cqCovered = 0; cqTotalPoints = 0; cqMissed = []; cqRetryIdx = 0; cqRetryCovered = 0; cqRetryTotal = 0;
   document.querySelector('.session-box').style.display = 'none';   // hide the note: answer from memory
   document.getElementById('cloze-input-row').style.display = 'none';
   document.querySelector('.feedback-row').style.display = 'none';
@@ -3579,23 +3588,87 @@ function revealClozeQuestion() {
   const btn = document.getElementById('cq-reveal');
   btn.textContent = last ? 'Finish' : 'Next question →';
   btn.onclick = () => {
-    cqCovered += document.querySelectorAll('#cq-after .cq-point input:checked').length;
-    if (last) finishClozeQuestions(card); else { cqIdx++; renderClozeQuestion(card); }
+    const boxes = [...document.querySelectorAll('#cq-after .cq-point input')];
+    boxes.forEach((b, i) => { if (b.checked) cqCovered++; else if (pts[i]) cqMissed.push({ q: q.q, t: pts[i].t, kw: pts[i].kw || [] }); });
+    if (last) afterClozeQuestions(card); else { cqIdx++; renderClozeQuestion(card); }
   };
-  if (last) {   // show the full note for the final comparison (without replaying the blank-feedback animation)
+  if (last && !card.questionsFirst) {   // show the full note for the final comparison (without replaying the blank-feedback animation)
     const box = document.querySelector('.session-box');
     box.classList.remove('flash-ok', 'shake');
     box.style.display = '';
   }
 }
 
+// ─── RETRY MISSED POINTS + QUESTIONS-FIRST FLOW ──────────────────────────────
+function afterClozeQuestions(card) {
+  if (cqMissed.length) startClozeRetry(card); else endClozeQuestions(card);
+}
+function endClozeQuestions(card) {
+  if (card.questionsFirst) beginBlanksAfterQuestions(card);
+  else {
+    const box = document.querySelector('.session-box'); box.classList.remove('flash-ok', 'shake'); box.style.display = '';
+    finishClozeQuestions(card);
+  }
+}
+// questions-first cards: the questions are done, now bring back the cloze text and the blanks
+function beginBlanksAfterQuestions(card) {
+  const w = document.getElementById('cq-wrap'); if (w) w.remove();
+  const box = document.querySelector('.session-box'); box.classList.remove('flash-ok', 'shake'); box.style.display = '';
+  document.getElementById('cloze-input-row').style.display = '';
+  document.querySelector('.feedback-row').style.display = '';
+  const f = document.getElementById('cloze-ans'); if (f) { f.value = ''; f.focus({ preventScroll: true }); }
+}
+function cqSummary() {
+  return cqTotalPoints ? ` · ${cqCovered}/${cqTotalPoints} key points` + (cqRetryTotal ? ` (retry ${cqRetryCovered}/${cqRetryTotal})` : '') : '';
+}
+
+function startClozeRetry(card) { cqRetryIdx = 0; cqRetryCovered = 0; cqRetryTotal = cqMissed.length; renderClozeRetry(card); }
+function renderClozeRetry(card) {
+  const m = cqMissed[cqRetryIdx], n = cqMissed.length;
+  const plain = String(m.t).replace(/[*_`\[\]{}]/g, ' ').trim();
+  const first = plain.split(/\s+/)[0] || '';
+  document.getElementById('cq-wrap').innerHTML = `<div class="cq-box">
+    <div class="session-label">Retry missed point ${cqRetryIdx + 1} / ${n} · say it again from memory</div>
+    <div class="cq-question">${md(m.q)}</div>
+    <div class="cq-hint">Hint: this point starts with “${esc(first)} …”</div>
+    <div id="cq-area"><input class="text-input" id="cq-retry-ans" type="text" placeholder="the point you missed…" autocomplete="off" spellcheck="false" /></div>
+    <div id="cq-after"></div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn-check" id="cq-reveal" onclick="checkClozeRetry()">Check · Enter</button>
+      <button class="btn-skip" onclick="endClozeQuestions(revQueue[revIdx])" title="Skip the rest of the retry">Skip retry</button>
+    </div>
+  </div>`;
+  const inp = document.getElementById('cq-retry-ans');
+  inp.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); document.getElementById('cq-reveal').click(); } };
+  setTimeout(() => inp.focus({ preventScroll: true }), 30);
+}
+function checkClozeRetry() {
+  const card = revQueue[revIdx], m = cqMissed[cqRetryIdx];
+  const inp = document.getElementById('cq-retry-ans'); if (!inp || inp.dataset.locked) return;
+  inp.dataset.locked = '1'; inp.readOnly = true;
+  const ans = cqNorm(inp.value), aw = new Set(ans.split(' '));
+  const kwHit = (m.kw || []).some(k => { const nk = cqNorm(k); return nk && ans.includes(nk); });
+  const sig = cqNorm(m.t).split(' ').filter(w => w.length > 3);
+  const ratio = sig.length ? sig.filter(w => aw.has(w)).length / sig.length : 0;
+  const hit = kwHit || ratio >= 0.6;
+  document.getElementById('cq-after').innerHTML = `<div class="cq-points-label">The point — ticked if you got it, fix it if I'm wrong</div>
+    <label class="cq-point"><input type="checkbox" ${hit ? 'checked' : ''} /><span>${md(m.t)}<div class="cq-tag ${hit ? 'ok' : ''}">${hit ? '✓ found in your answer' : 'not matched — tick it if you covered it another way'}</div></span></label>`;
+  const last = cqRetryIdx === cqMissed.length - 1;
+  const btn = document.getElementById('cq-reveal');
+  btn.textContent = last ? 'Finish' : 'Next →';
+  btn.onclick = () => {
+    if (document.querySelector('#cq-after .cq-point input').checked) cqRetryCovered++;
+    if (last) endClozeQuestions(card); else { cqRetryIdx++; renderClozeRetry(card); }
+  };
+}
+
 function finishClozeQuestions(card) {
-  document.getElementById('cq-reveal').style.display = 'none';
+  { const rv = document.getElementById('cq-reveal'); if (rv) rv.style.display = 'none'; }
   const fb = document.querySelector('.feedback-row'), f = document.getElementById('cloze-fb');
   fb.style.display = '';
   const blanks = `${clozeCorrect}/${clozeAnswers.length} blanks`;
   const all = clozeCorrect === clozeAnswers.length && cqCovered === cqTotalPoints;
-  f.textContent = cqTotalPoints ? `${blanks} · ${cqCovered}/${cqTotalPoints} key points` : blanks;
+  f.textContent = blanks + cqSummary();
   f.className = 'feedback ' + (all ? 'ok' : 'bad');
   const grid = document.getElementById('rating-grid');
   grid.classList.add('show');
@@ -3631,6 +3704,7 @@ function renderClozeRev(main, card, pct) {
   </div>`;
 
   renderClozeStep(card);
+  if (card.questions && card.questions.length && card.questionsFirst) startClozeQuestions(card);
   setTimeout(() => {
     const f = document.getElementById('cloze-ans');
     if (f) { f.focus({ preventScroll: true }); f.onkeydown = e => { if (e.altKey && (e.key === 'h' || e.key === 'H' || e.code === 'KeyH')) { e.preventDefault(); toggleCardHints(); return; } if (e.altKey && (e.key === 'l' || e.key === 'L' || e.code === 'KeyL')) { e.preventDefault(); revealMoreHint(); return; } if (e.key === 'Enter') { e.preventDefault(); if (e.ctrlKey || e.metaKey) skipClozeBlank(true); else if (e.shiftKey) skipClozeBlank(false); else checkCloze(); } }; }
@@ -3699,8 +3773,11 @@ function finishCloze(card, input, fb) {
     fb.textContent = (perfect ? '✓ all correct' : `${clozeCorrect}/${graded} correct`) + (shown ? ` · ${shown} shown` : '');
     fb.className = 'feedback ' + (perfect ? 'ok' : 'bad');
   }
-  if (card.questions && card.questions.length) startClozeQuestions(card);
-  else document.getElementById('rating-grid').classList.add('show');
+  if (card.questions && card.questions.length && !card.questionsFirst) startClozeQuestions(card);
+  else {
+    if (card.questions && card.questions.length) fb.textContent += cqSummary();
+    document.getElementById('rating-grid').classList.add('show');
+  }
 }
 // "Show" fills in the current blank, "Reveal all" fills in every remaining one: neutral purple, not counted right or wrong
 function skipClozeBlank(all) {
