@@ -1165,11 +1165,6 @@ body:not(.dark) .review-wrap{position:relative}
 .cz-keys{flex-basis:100%;font-size:11.5px;color:var(--text-faint);line-height:1.8;margin-top:-2px}
 .cz-keys kbd{font-family:'JetBrains Mono',monospace;font-size:10.5px;padding:1px 6px;border-radius:5px;border:1px solid var(--border-strong);color:var(--text-muted);background:transparent}
 .cz-hint-toggle{padding:4px 12px!important;font-size:12px!important}
-.cz-recap{margin:10px 0 6px}
-.cz-recap-h{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px}
-.cz-rc{display:flex;gap:10px;align-items:baseline;font-size:14.5px;padding:3px 0}
-.cz-rc .m{width:14px;flex-shrink:0;text-align:center}.cz-rc .m.ok{color:var(--accent)}.cz-rc .m.bad{color:var(--red)}.cz-rc .m.sk{color:var(--text-faint)}
-.cz-note{font-size:12.5px;color:var(--text-faint)}
 .mv-heat i{background:color-mix(in srgb,var(--text) 13%,transparent)}
 #card-overlay .modal-actions{position:sticky;bottom:-26px;z-index:5;margin:16px -26px -26px;padding:14px 26px;background:var(--bg-card);border-top:1px solid var(--border)}
 #card-overlay .deck-pick-row label[for="etype-select"]{min-width:0}
@@ -3719,7 +3714,6 @@ function renderClozeRev(main, card, pct) {
     <div class="feedback-row">
       <span class="feedback" id="cloze-fb"></span>
     </div>
-    <div class="cz-recap" id="cloze-recap"></div>
     ${ratingHTML(revQueue[revIdx])}
   </div>`;
 
@@ -3792,14 +3786,6 @@ function finishCloze(card, input, fb) {
     const perfect = clozeCorrect === graded;
     fb.textContent = (perfect ? '✓ all correct' : `${clozeCorrect}/${graded} correct`) + (shown ? ` · ${shown} shown` : '');
     fb.className = 'feedback ' + (perfect ? 'ok' : 'bad');
-  }
-  { // recap: what you wrote for each blank
-    const rc = document.getElementById('cloze-recap');
-    if (rc && total) rc.innerHTML = '<div class="cz-recap-h">Your answers</div>' + clozeAnswers.map(a => {
-      const mark = a._skip ? '<span class="m sk">◦</span>' : a._ok ? '<span class="m ok">✓</span>' : '<span class="m bad">✗</span>';
-      const extra = a._skip ? '<span class="cz-note">shown</span>' : (!a._ok && a._typed) ? `<span class="cz-note">you wrote “${esc(a._typed)}”</span>` : '';
-      return `<div class="cz-rc">${mark}<b>${esc(a.answer)}</b>${extra}</div>`;
-    }).join('');
   }
   if (card.questions && card.questions.length && !card.questionsFirst) startClozeQuestions(card);
   else {
